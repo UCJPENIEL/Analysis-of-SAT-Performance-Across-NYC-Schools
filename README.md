@@ -50,34 +50,24 @@ Here are some highlights from the analysis:
 
 
 - **Schools with Best Math Scores (>= 640)**
-   ![Best Math Scores]<img width="1034" height="1277" alt="image" src="https://github.com/user-attachments/assets/bdce2570-dd19-4237-abf2-fb11a6ad3dc4" />
+   <img width="1034" height="1277" alt="image" src="https://github.com/user-attachments/assets/bdce2570-dd19-4237-abf2-fb11a6ad3dc4" />
  
 
 - **Top 10 Schools by Combined SAT Score**  
-  ![Top Schools]<img width="1310" height="1195" alt="image" src="https://github.com/user-attachments/assets/1454b1f3-da33-40a7-b6a0-c8c9e52a79f0" />
+  <img width="1310" height="1195" alt="image" src="https://github.com/user-attachments/assets/1454b1f3-da33-40a7-b6a0-c8c9e52a79f0" />
 
  
 
 - **Borough-Level SAT Performance Comparison**  
-  ![Borough Comparison]<img width="879" height="574" alt="image" src="https://github.com/user-attachments/assets/873eaa9c-579a-4b88-8210-d1bc7ac84ccd" />
+  <img width="879" height="574" alt="image" src="https://github.com/user-attachments/assets/873eaa9c-579a-4b88-8210-d1bc7ac84ccd" />
  
 
-- **Standard Deviation of Total SAT Scores Across Boroughs**  
-  ![Variability]<img width="879" height="574" alt="image" src="https://github.com/user-attachments/assets/61b2abd3-5662-4617-a690-d28d05b086e1" />
+- **Total SAT Scores Across Boroughs**  
+  <img width="891" height="574" alt="image" src="https://github.com/user-attachments/assets/355791e6-4cb2-4909-b1d9-f72fbe2b1022" />
+
 
 
 > ℹ️ *All visuals are generated using Python (Pandas, Matplotlib, Seaborn).*  
-
----
-├── schools.csv # Dataset
-├── NYC_SAT_Analysis.ipynb # Jupyter Notebook (code + visuals + narrative)
-├── report.pdf # Stakeholder-ready report
-├── images/ # Project visuals (for README display)
-│ ├── borough_distribution.png
-│ ├── top_schools.png
-│ ├── borough_comparison.png
-│ └── variability.png
-└── README.md # Project documentation
 
 
 ---
@@ -115,3 +105,12 @@ Here are some highlights from the analysis:
 
 
 ## 📂 Repository Structure  
+├── schools.csv # Dataset
+├── NYC_SAT_Analysis.ipynb # Jupyter Notebook (code + visuals + narrative)
+├── report.pdf # Stakeholder-ready report
+├── images/ # Project visuals (for README display)
+│ ├── borough_distribution.png
+│ ├── top_schools.png
+│ ├── borough_comparison.png
+│ └── variability.png
+└── README.md # Project documentation
