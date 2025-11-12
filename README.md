@@ -126,7 +126,7 @@ This project showcases how data analysis can:
 **Ugochukwu Joshua Toluwaleke**  
 *Data Analyst | Storytelling with Data | Excel | SQL | Python*  
 
-🔗 [LinkedIn](#) | [Portfolio](#)
+🔗 [LinkedIn](www.linkedin.com/in/joshuaugochukwu) | [Portfolio](https://github.com/UCJPENIEL/UCJPENIEL)
 
 ---
 
