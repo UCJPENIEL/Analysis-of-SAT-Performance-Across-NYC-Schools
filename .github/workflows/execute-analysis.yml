@@ -42,6 +42,175 @@ jobs:
             --ExecutePreprocessor.timeout=600 \
             "Analysis of SAT Performance Across NYC Schools.ipynb"
 
+
+      - name: Generate visual PDF report
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          from reportlab.lib import colors
+          from reportlab.lib.enums import TA_CENTER
+          from reportlab.lib.pagesizes import A4
+          from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+          from reportlab.lib.units import mm
+          from reportlab.platypus import (
+              SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle,
+              PageBreak, KeepTogether
+          )
+
+          output = Path("NYC_Schools_SAT_Analysis.pdf")
+          df = pd.read_csv("schools.csv")
+          score_cols = ["average_math", "average_reading", "average_writing"]
+          df["total_SAT"] = df[score_cols].sum(axis=1, min_count=3)
+          borough = (
+              df.dropna(subset=["borough", "total_SAT"])
+                .groupby("borough")["total_SAT"]
+                .agg(["count", "mean", "median", "std"])
+                .reset_index()
+                .round(1)
+          )
+          top10 = (
+              df.dropna(subset=["total_SAT"])
+                .nlargest(10, "total_SAT")[["school_name", "borough", "total_SAT"]]
+                .copy()
+          )
+          top10["total_SAT"] = top10["total_SAT"].round(0).astype(int)
+
+          styles = getSampleStyleSheet()
+          styles.add(ParagraphStyle(name="CoverTitle", parent=styles["Title"],
+                                    fontSize=22, leading=27, alignment=TA_CENTER,
+                                    spaceAfter=12))
+          styles.add(ParagraphStyle(name="SubTitle", parent=styles["Normal"],
+                                    fontSize=10, leading=15, alignment=TA_CENTER,
+                                    textColor=colors.HexColor("#555555")))
+          styles.add(ParagraphStyle(name="Section", parent=styles["Heading1"],
+                                    fontSize=15, leading=19, spaceBefore=8,
+                                    spaceAfter=8, textColor=colors.HexColor("#17365D")))
+          styles.add(ParagraphStyle(name="BodySmall", parent=styles["BodyText"],
+                                    fontSize=9, leading=13, spaceAfter=6))
+          doc = SimpleDocTemplate(str(output), pagesize=A4,
+                                  rightMargin=17*mm, leftMargin=17*mm,
+                                  topMargin=16*mm, bottomMargin=16*mm)
+          story = [
+              Spacer(1, 24*mm),
+              Paragraph("NYC Public School SAT Performance", styles["CoverTitle"]),
+              Paragraph("Exploratory Data Analysis and Borough-Level Comparison",
+                        styles["SubTitle"]),
+              Spacer(1, 12*mm),
+              Paragraph(
+                  "This report examines school-level average SAT Math, Reading and "
+                  "Writing scores, combined performance, borough variation and the "
+                  "relationship between participation and scores.",
+                  styles["BodyText"]),
+              Spacer(1, 5*mm),
+              Paragraph("<b>Dataset source:</b> Kaggle — "
+                        "<link href='https://www.kaggle.com/datasets/mohamedmostafa259/nyc-public-school-sat-performance-dataset'>"
+                        "NYC Public School SAT Performance</link>. "
+                        "The Kaggle page's update date is not necessarily the data "
+                        "collection year; this report therefore treats the data as "
+                        "historical rather than current.",
+                        styles["BodySmall"]),
+              Paragraph("<b>Unit of analysis:</b> one school per row. SAT values are "
+                        "school-level averages, not individual student scores.",
+                        styles["BodySmall"]),
+              PageBreak(),
+              Paragraph("Dataset overview", styles["Section"]),
+              Paragraph(
+                  f"The file contains {len(df):,} school records. Combined SAT is "
+                  "calculated only when all three section scores are available, "
+                  "using Math + Reading + Writing (maximum 2,400). "
+                  f"{df['total_SAT'].notna().sum():,} records have a complete combined score.",
+                  styles["BodySmall"]),
+              Paragraph("Top 10 schools by combined SAT", styles["Section"])
+          ]
+
+          top_data = [["School", "Borough", "Combined SAT"]] + [
+              [str(row.school_name), str(row.borough), f"{int(row.total_SAT):,}"]
+              for row in top10.itertuples(index=False)
+          ]
+          top_table = Table(top_data, colWidths=[100*mm, 35*mm, 30*mm], repeatRows=1)
+          top_table.setStyle(TableStyle([
+              ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#17365D")),
+              ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+              ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+              ("FONTSIZE", (0,0), (-1,-1), 8),
+              ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#CCCCCC")),
+              ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F2F5F8")]),
+              ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+              ("TOPPADDING", (0,0), (-1,-1), 5),
+              ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+          ]))
+          story += [top_table, Spacer(1, 5*mm),
+                    Paragraph("Borough summary (school-level combined SAT)",
+                              styles["Section"])]
+          borough_data = [["Borough", "Schools", "Mean", "Median", "Std. dev."]]
+          for row in borough.itertuples(index=False):
+              borough_data.append([str(row.borough), str(int(row.count)),
+                                   f"{row.mean:,.1f}", f"{row.median:,.1f}",
+                                   "—" if pd.isna(row.std) else f"{row.std:,.1f}"])
+          borough_table = Table(borough_data, colWidths=[43*mm, 25*mm, 30*mm, 30*mm, 30*mm])
+          borough_table.setStyle(TableStyle([
+              ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#17365D")),
+              ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+              ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+              ("FONTSIZE", (0,0), (-1,-1), 8),
+              ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#CCCCCC")),
+              ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F2F5F8")]),
+              ("ALIGN", (1,1), (-1,-1), "RIGHT"),
+          ]))
+          story += [borough_table, PageBreak()]
+
+          charts = [
+              ("01_math_benchmark_schools.png", "Schools meeting the Math SAT benchmark"),
+              ("02_top_10_combined_sat.png", "Ten highest combined school-level SAT scores"),
+              ("03_borough_mean_and_variation.png", "Borough averages and score variation"),
+              ("04_sat_distribution_by_borough.png", "Distribution of combined SAT by borough"),
+              ("05_sat_section_correlations.png", "Relationships among SAT section scores"),
+              ("06_participation_vs_sat.png", "SAT participation and combined score"),
+          ]
+          for filename, title in charts:
+              path = Path("images") / filename
+              if not path.is_file():
+                  raise FileNotFoundError(f"Expected chart was not generated: {path}")
+              story.append(Paragraph(title, styles["Section"]))
+              img = Image(str(path))
+              img._restrictSize(175*mm, 105*mm)
+              story.extend([img, Spacer(1, 5*mm)])
+              if filename in ("03_borough_mean_and_variation.png",
+                              "05_sat_section_correlations.png"):
+                  story.append(PageBreak())
+
+          story += [
+              PageBreak(),
+              Paragraph("Interpretation and limitations", styles["Section"]),
+              Paragraph(
+                  "Standard deviation measures dispersion, not achievement. A borough "
+                  "with a larger standard deviation has more variation among its "
+                  "schools; it does not automatically have better or worse performance.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  "Correlation describes association and does not establish causation. "
+                  "School-level averages cannot be used to infer individual student "
+                  "outcomes. Borough comparisons should be interpreted alongside group "
+                  "sizes and missing data.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  "SAT scores alone do not measure overall school quality. They do not "
+                  "account for student composition, socioeconomic context, school "
+                  "resources or longitudinal outcomes. These descriptive findings "
+                  "should prompt further investigation, not serve as a sole basis for "
+                  "school rankings or funding decisions.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  "Reproducibility: the accompanying Jupyter notebook contains the "
+                  "full workflow. Charts in this PDF are exported by executing that "
+                  "notebook from the repository.",
+                  styles["BodySmall"]),
+          ]
+          doc.build(story)
+          print(f"Created {output} ({output.stat().st_size:,} bytes)")
+          PY
+
       - name: Verify execution outputs and exported charts
         run: |
           python - <<'PY'
@@ -76,7 +245,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "Analysis of SAT Performance Across NYC Schools.ipynb" images/
+          git add "Analysis of SAT Performance Across NYC Schools.ipynb" images/ NYC_Schools_SAT_Analysis.pdf
           if git diff --cached --quiet; then
             echo "No executed notebook or chart changes to commit."
           else
