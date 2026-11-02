@@ -1,0 +1,85 @@
+name: Execute SAT analysis notebook
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Analysis of SAT Performance Across NYC Schools.ipynb"
+      - "schools.csv"
+      - "requirements.txt"
+      - ".github/workflows/execute-analysis.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  execute-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install analysis dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Execute every notebook cell
+        env:
+          MPLBACKEND: Agg
+        run: |
+          jupyter nbconvert \
+            --to notebook \
+            --execute \
+            --inplace \
+            --ExecutePreprocessor.timeout=600 \
+            "Analysis of SAT Performance Across NYC Schools.ipynb"
+
+      - name: Verify execution outputs and exported charts
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          notebook_path = Path("Analysis of SAT Performance Across NYC Schools.ipynb")
+          notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+          code_cells = [cell for cell in notebook["cells"] if cell["cell_type"] == "code"]
+          executed = [cell for cell in code_cells if cell.get("execution_count") is not None]
+          with_outputs = [cell for cell in code_cells if cell.get("outputs")]
+          assert len(executed) == len(code_cells), (
+              f"Only {len(executed)} of {len(code_cells)} code cells executed."
+          )
+          assert with_outputs, "No code cell contains saved outputs."
+
+          expected_charts = [
+              "01_math_benchmark_schools.png",
+              "02_top_10_combined_sat.png",
+              "03_borough_mean_and_variation.png",
+              "04_sat_distribution_by_borough.png",
+              "05_sat_section_correlations.png",
+              "06_participation_vs_sat.png",
+          ]
+          missing = [name for name in expected_charts if not (Path("images") / name).is_file()]
+          assert not missing, f"Missing exported charts: {missing}"
+          print(f"Executed {len(executed)} code cells; {len(with_outputs)} contain outputs.")
+          print("Verified charts:", ", ".join(expected_charts))
+          PY
+
+      - name: Commit executed notebook and charts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Analysis of SAT Performance Across NYC Schools.ipynb" images/
+          if git diff --cached --quiet; then
+            echo "No executed notebook or chart changes to commit."
+          else
+            git commit -m "Save executed SAT analysis and visualizations [skip ci]"
+            git push
+          fi
