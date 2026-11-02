@@ -1,99 +1,89 @@
 # NYC Public School SAT Performance Analysis
 
-*An end-to-end exploratory data analysis of school-level SAT performance across New York City's five boroughs.*
+An end-to-end exploratory data analysis of school-level SAT performance across New York City's five boroughs.
 
-## Project overview
+## Project questions
 
-This project analyzes public high-school SAT results to answer three original questions:
-
-1. Which NYC schools have the strongest average Math SAT results (at least 640 out of 800)?
-2. Which schools have the ten highest combined SAT section averages?
+1. Which NYC public schools have average Math SAT scores of at least 640 (out of 800)?
+2. Which schools have the ten highest combined average SAT scores?
 3. Which borough has the greatest variation in combined school-level SAT scores?
 
-The analysis preserves these original questions and extends them with data-quality checks, feature validation, distribution analysis, correlation analysis, and stakeholder-focused limitations.
+## Dataset and provenance
 
-## Dataset and grain
+- **Dataset:** [NYC Public School SAT Performance — Kaggle](https://www.kaggle.com/datasets/mohamedmostafa259/nyc-public-school-sat-performance-dataset)
+- **Original file:** `schools.csv`
+- **Local copy:** included in this repository for reproducibility.
+- **Grain:** one row per school; these are school-level averages, not individual student records.
+- **Fields:** school name, borough, building code, average Math, Reading and Writing scores, and percentage tested.
+- **Score scale:** 0–800 per SAT section; 0–2,400 combined.
+- **Date caution:** the Kaggle page's update date describes the dataset upload, not necessarily the year of the underlying SAT results. Treat this as historical data, not a live measure of current school performance.
 
-- **File:** `schools.csv`
-- **Source:** NYC public-school SAT dataset supplied for this analysis.
-- **Grain:** one record per school.
-- **Fields:** school name, borough, building code, average Math, Reading and Writing scores, and percentage of students tested.
-- **Score scale:** each SAT section ranges from 0 to 800; the combined score ranges from 0 to 2,400.
-- **Participation:** percentage tested ranges from 0 to 100 and contains missing observations.
+## Analytical workflow
 
-The unit of analysis is the school. These are school-level averages, not individual student records.
+1. Define the questions and identify the unit of analysis.
+2. Inspect dataset dimensions, schema, types, summary statistics and sample records.
+3. Audit missingness, exact duplicates, repeated school names/building codes, categorical consistency and valid value ranges.
+4. Preserve missing participation values rather than inventing them through imputation.
+5. Engineer combined SAT only when all three section scores are present; validate the 0–2,400 range and arithmetic.
+6. Rank schools against the original math benchmark and by combined score.
+7. Compare borough means, medians, sample sizes and standard deviations.
+8. Investigate distribution shape and IQR outliers without automatically deleting valid observations.
+9. Examine SAT-section relationships with Pearson and Spearman correlations.
+10. Examine participation versus combined SAT using complete pairs and report the usable sample size.
+11. Run post-analysis assertions and interpret findings with limitations.
 
-## End-to-end analytical workflow
+## Visual findings
 
-1. **Problem definition:** retain the three original project questions.
-2. **Dataset understanding:** inspect dimensions, column names, data types, summary statistics, and the school-level grain.
-3. **Raw-data validation:** audit schema, missingness, exact duplicate rows, repeated school names/building codes, categorical values, and valid score/percentage ranges.
-4. **Cleaning decisions:** standardize surrounding whitespace and ensure numeric fields are numeric. Missing participation values are retained because they are not needed for SAT totals and should not be fabricated. Shared building codes are investigated, not automatically deleted.
-5. **Feature engineering:** calculate combined SAT only when all three section scores are present.
-6. **Feature validation:** verify combined scores fall within 0–2,400 and equal the sum of the three sections.
-7. **Exploratory and main analysis:** investigate borough distribution, high Math scores, top combined-score schools, borough means, medians, standard deviations, and group sizes.
-8. **Relationship analysis:** compare SAT sections using Pearson and Spearman correlations; examine participation versus performance using complete observations.
-9. **Post-analysis validation:** reconcile rankings and borough counts with the underlying data.
-10. **Communication:** interpret findings with sample sizes, outlier context, and explicit limitations.
+The notebook saves the following figures to `images/` when executed:
 
-## Statistical and analytical considerations
+| Figure | What it communicates |
+|---|---|
+| [Math benchmark schools](images/01_math_benchmark_schools.png) | Schools meeting the 640 Math SAT threshold |
+| [Top 10 combined SAT](images/02_top_10_combined_sat.png) | Highest combined school-level section averages |
+| [Borough mean and variation](images/03_borough_mean_and_variation.png) | Borough average scores and within-borough dispersion |
+| [SAT distribution by borough](images/04_sat_distribution_by_borough.png) | Distribution and potential outliers |
+| [SAT section correlations](images/05_sat_section_correlations.png) | Pearson and Spearman relationships between sections |
+| [Participation vs SAT](images/06_participation_vs_sat.png) | Association between test participation and combined score |
 
-- **Mean** is the arithmetic average and can be influenced by extreme values.
-- **Median** is the middle observation and is less sensitive to extreme values.
-- **Standard deviation** measures dispersion, not the level of performance. A borough with a larger standard deviation has more variation among its school averages; it does not necessarily have a higher or lower average.
-- **Group size** matters. Borough comparisons should be interpreted alongside the number of schools represented.
-- **IQR outliers** are flagged for investigation, not automatically removed.
-- **Correlation** measures association. It does not demonstrate that participation causes SAT performance to rise or fall.
+## Reproduce the analysis
 
-## Visualizations
+1. Clone or download this repository.
+2. Install Python 3.10 or later.
+3. Install the dependencies:
 
-The notebook includes:
-- School counts by borough.
-- Schools meeting the Math benchmark.
-- Top ten schools by combined SAT score.
-- Borough mean and standard deviation comparisons.
-- Borough-level SAT score distributions and potential outliers.
-- Pearson and Spearman correlation heatmaps.
-- Participation versus combined SAT scatter/regression plot.
+```bash
+pip install -r requirements.txt
+```
 
-## Limitations
+4. Open `Analysis of SAT Performance Across NYC Schools.ipynb` in Jupyter Notebook or JupyterLab.
+5. Run **Kernel → Restart Kernel and Run All Cells**.
 
-- The dataset is observational and school-level; it cannot explain individual student outcomes.
-- Participation percentage is missing for some schools. Participation analysis therefore uses complete pairs and reports the sample size.
-- Boroughs have unequal numbers of schools, which affects the stability and comparability of summary statistics.
-- SAT averages alone do not measure overall school quality, teaching effectiveness, or student potential.
-- Socioeconomic conditions, resources, enrollment, student composition, and selection effects are not fully represented.
-- Associations cannot be interpreted as causal effects.
+The notebook searches the current folder and its parent folders for `schools.csv`. Charts are saved in the `images/` directory.
 
-## Stakeholder interpretation
+## Validation and interpretation
 
-Use the analysis to identify patterns, questions for further investigation, and potential areas for additional support—not as a definitive school-quality ranking or a standalone basis for funding decisions. A stronger equity assessment would combine SAT results with school resources, socioeconomic context, enrollment, and longitudinal outcomes.
+- A combined SAT score is calculated only when Math, Reading and Writing are all present.
+- Section scores are checked against 0–800; participation is checked against 0–100%.
+- Missing participation is not imputed.
+- Repeated building codes are not automatically treated as duplicate schools because multiple schools can share a building.
+- IQR flags are prompts for investigation, not automatic deletion rules.
+- Borough comparisons are interpreted alongside group sizes.
+- Correlation does not establish causation.
+- School-level averages cannot be used to infer individual student outcomes.
 
-## Tools
+## Limitations and responsible use
 
-- Python
-- Pandas and NumPy
-- Matplotlib and Seaborn
-- Jupyter Notebook
-- Git and GitHub
+SAT averages alone do not measure the full quality of a school, teaching effectiveness or student potential. Differences may reflect student composition, resources, selection effects and other unobserved factors. These findings are descriptive and should support further investigation—not definitive school rankings or funding decisions.
+
+A stronger equity analysis would combine this dataset with socioeconomic indicators, enrollment, school resources and longitudinal student outcomes.
 
 ## Repository contents
 
-- `Analysis of SAT Performance Across NYC Schools.ipynb` — reproducible analysis and narrative.
-- `schools.csv` — source dataset.
-- `NYC_Schools_SAT_Analysis.pdf` — previously generated report (review separately against the updated notebook before reuse).
-- `schoolbus (1).jpg` — project image.
+- `Analysis of SAT Performance Across NYC Schools.ipynb` — complete analysis and rendered outputs.
+- `schools.csv` — source data copy.
+- `images/` — exported charts generated by the notebook.
+- `requirements.txt` — Python dependencies.
 
-## Run the project
+## Tools
 
-1. Clone or download this repository.
-2. Install the required packages: `pandas`, `numpy`, `matplotlib`, `seaborn`, and `jupyter`.
-3. Keep `schools.csv` in the same directory as the notebook.
-4. Open the notebook and run all cells from top to bottom.
-
-## Author
-
-**Ugochukwu Joshua Toluwaleke**  
-Data Analyst | Python | Statistical & Decision Analysis
-
-[LinkedIn](https://www.linkedin.com/in/joshuaugochukwu) · [GitHub](https://github.com/UCJPENIEL)
+Python, Pandas, NumPy, Matplotlib, Seaborn, Jupyter Notebook.
