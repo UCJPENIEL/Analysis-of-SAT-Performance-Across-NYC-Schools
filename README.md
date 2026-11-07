@@ -91,7 +91,7 @@ Interpretation:
 
 ### Distributions and outliers
 
-The global IQR rule flags 27 potential high-score outliers above the upper fence (about 1,590.8); none fall below the lower fence (about 896.8). These observations may be genuine high-performing schools. An IQR flag is a prompt to inspect a record, not proof of an error and not a reason to remove it automatically.
+The global IQR rule flags 27 potential high-score outliers above the upper fence (about 1,590.8); none fall below the lower fence (about 896.8). These observations may be genuine high-performing schools. The count uses one global IQR fence across all schools; the borough boxplot calculates separate whiskers and visual outlier markers within each borough, so the two counts need not match. An IQR flag is a prompt to inspect a record, not proof of an error and not a reason to remove it automatically.
 
 ### Relationships among SAT sections
 
