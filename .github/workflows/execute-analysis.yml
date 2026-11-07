@@ -42,7 +42,6 @@ jobs:
             --ExecutePreprocessor.timeout=600 \
             "Analysis of SAT Performance Across NYC Schools.ipynb"
 
-
       - name: Generate visual PDF report
         run: |
           python - <<'PY'
@@ -55,26 +54,60 @@ jobs:
           from reportlab.lib.units import mm
           from reportlab.platypus import (
               SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle,
-              PageBreak, KeepTogether
+              PageBreak
           )
 
           output = Path("NYC_Schools_SAT_Analysis.pdf")
           df = pd.read_csv("schools.csv")
           score_cols = ["average_math", "average_reading", "average_writing"]
+
+          # Independent report-side checks protect against a broken notebook result.
+          assert set(["school_name", "borough", "building_code", *score_cols,
+                      "percent_tested"]).issubset(df.columns)
+          for column in score_cols:
+              assert df[column].between(200, 800).all(), f"Invalid legacy SAT range: {column}"
+          assert df["percent_tested"].dropna().between(0, 100).all()
+
           df["total_SAT"] = df[score_cols].sum(axis=1, min_count=3)
+          assert df["total_SAT"].dropna().between(600, 2400).all()
+
           borough = (
               df.dropna(subset=["borough", "total_SAT"])
                 .groupby("borough")["total_SAT"]
                 .agg(["count", "mean", "median", "std"])
                 .reset_index()
-                .round(1)
+                .round(2)
           )
           top10 = (
               df.dropna(subset=["total_SAT"])
-                .nlargest(10, "total_SAT")[["school_name", "borough", "total_SAT"]]
+                .sort_values(["total_SAT", "school_name"],
+                             ascending=[False, True], kind="mergesort")
+                [["school_name", "borough", "total_SAT"]]
+                .head(10)
                 .copy()
           )
           top10["total_SAT"] = top10["total_SAT"].round(0).astype(int)
+
+          participation = df[["percent_tested", "total_SAT"]].dropna()
+          participation_pearson = participation["percent_tested"].corr(
+              participation["total_SAT"], method="pearson")
+          participation_spearman = participation["percent_tested"].corr(
+              participation["total_SAT"], method="spearman")
+          section_corr = df[score_cols].corr(method="pearson")
+
+          q1 = df["total_SAT"].quantile(0.25)
+          q3 = df["total_SAT"].quantile(0.75)
+          iqr = q3 - q1
+          lower_fence = q1 - 1.5 * iqr
+          upper_fence = q3 + 1.5 * iqr
+          outlier_count = int(
+              ((df["total_SAT"] < lower_fence) |
+               (df["total_SAT"] > upper_fence)).sum()
+          )
+          math_count = int((df["average_math"] >= 640).sum())
+          highest_mean = borough.loc[borough["mean"].idxmax()]
+          highest_std = borough.loc[borough["std"].idxmax()]
+          top_school = top10.iloc[0]
 
           styles = getSampleStyleSheet()
           styles.add(ParagraphStyle(name="CoverTitle", parent=styles["Title"],
@@ -98,28 +131,60 @@ jobs:
                         styles["SubTitle"]),
               Spacer(1, 12*mm),
               Paragraph(
-                  "This report examines school-level average SAT Math, Reading and "
-                  "Writing scores, combined performance, borough variation and the "
-                  "relationship between participation and scores.",
+                  "This report examines school-level averages for the legacy SAT "
+                  "Math, Critical Reading and Writing sections. The three section "
+                  "averages are summed to create a school-level comparison metric.",
                   styles["BodyText"]),
               Spacer(1, 5*mm),
               Paragraph("<b>Dataset source:</b> Kaggle — "
                         "<link href='https://www.kaggle.com/datasets/mohamedmostafa259/nyc-public-school-sat-performance-dataset'>"
-                        "NYC Public School SAT Performance</link>. "
-                        "The Kaggle page's update date is not necessarily the data "
-                        "collection year; this report therefore treats the data as "
-                        "historical rather than current.",
+                        "NYC Public School SAT Performance</link>. The Kaggle upload "
+                        "date is not necessarily the test year; the exact testing year "
+                        "for this copy is not established in this repository.",
                         styles["BodySmall"]),
               Paragraph("<b>Unit of analysis:</b> one school per row. SAT values are "
                         "school-level averages, not individual student scores.",
                         styles["BodySmall"]),
+              Paragraph("<b>Score-format caution:</b> these are legacy three-section "
+                        "scores (600–2,400 combined), not current Digital SAT totals "
+                        "(400–1,600).",
+                        styles["BodySmall"]),
               PageBreak(),
-              Paragraph("Dataset overview", styles["Section"]),
+              Paragraph("Dataset overview and key findings", styles["Section"]),
               Paragraph(
-                  f"The file contains {len(df):,} school records. Combined SAT is "
-                  "calculated only when all three section scores are available, "
-                  "using Math + Reading + Writing (maximum 2,400). "
-                  f"{df['total_SAT'].notna().sum():,} records have a complete combined score.",
+                  f"The file contains {len(df):,} school records across "
+                  f"{df['borough'].nunique()} boroughs. All {df['total_SAT'].notna().sum():,} "
+                  "records have complete Math, Reading and Writing averages. "
+                  f"{df['percent_tested'].isna().sum():,} records have no reported "
+                  "participation percentage.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  f"<b>Math screening:</b> {math_count} schools meet the project-defined "
+                  "640/800 threshold (80% of the section maximum). This is not an "
+                  "official College Board proficiency benchmark.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  f"<b>Top combined school-level score:</b> {top_school['school_name']} "
+                  f"({int(top_school['total_SAT']):,} out of 2,400).",
+                  styles["BodySmall"]),
+              Paragraph(
+                  f"<b>Highest borough mean:</b> {highest_mean['borough']} "
+                  f"({highest_mean['mean']:,.2f}; n={int(highest_mean['count'])}). "
+                  f"<b>Largest borough sample standard deviation:</b> "
+                  f"{highest_std['borough']} ({highest_std['std']:,.2f}; "
+                  f"n={int(highest_std['count'])}). Standard deviation measures "
+                  "spread, not achievement.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  f"<b>Potential IQR outliers:</b> {outlier_count}. These are flags for "
+                  "investigation, not automatic data errors or grounds for deletion.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  f"<b>Participation association:</b> Pearson r={participation_pearson:.3f} "
+                  f"and Spearman rho={participation_spearman:.3f} across "
+                  f"{len(participation):,} schools with reported participation. "
+                  "This is association, not evidence that participation causes "
+                  "higher scores.",
                   styles["BodySmall"]),
               Paragraph("Top 10 schools by combined SAT", styles["Section"])
           ]
@@ -141,13 +206,13 @@ jobs:
               ("BOTTOMPADDING", (0,0), (-1,-1), 5),
           ]))
           story += [top_table, Spacer(1, 5*mm),
-                    Paragraph("Borough summary (school-level combined SAT)",
+                    Paragraph("Borough summary (unweighted school-level scores)",
                               styles["Section"])]
-          borough_data = [["Borough", "Schools", "Mean", "Median", "Std. dev."]]
+          borough_data = [["Borough", "Schools", "Mean", "Median", "Sample SD"]]
           for row in borough.itertuples(index=False):
               borough_data.append([str(row.borough), str(int(row.count)),
-                                   f"{row.mean:,.1f}", f"{row.median:,.1f}",
-                                   "—" if pd.isna(row.std) else f"{row.std:,.1f}"])
+                                   f"{row.mean:,.2f}", f"{row.median:,.2f}",
+                                   "—" if pd.isna(row.std) else f"{row.std:,.2f}"])
           borough_table = Table(borough_data, colWidths=[43*mm, 25*mm, 30*mm, 30*mm, 30*mm])
           borough_table.setStyle(TableStyle([
               ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#17365D")),
@@ -161,19 +226,19 @@ jobs:
           story += [borough_table, PageBreak()]
 
           charts = [
-              ("01_math_benchmark_schools.png", "Schools meeting the Math SAT benchmark"),
-              ("02_top_10_combined_sat.png", "Ten highest combined school-level SAT scores"),
-              ("03_borough_mean_and_variation.png", "Borough averages and score variation"),
-              ("04_sat_distribution_by_borough.png", "Distribution of combined SAT by borough"),
-              ("05_sat_section_correlations.png", "Relationships among SAT section scores"),
-              ("06_participation_vs_sat.png", "SAT participation and combined score"),
+              ("01_math_benchmark_schools.png", "Schools meeting the Math SAT threshold"),
+              ("02_top_10_combined_sat.png", "Ten highest combined legacy SAT school averages"),
+              ("03_borough_mean_and_variation.png", "Borough means and within-borough variation"),
+              ("04_sat_distribution_by_borough.png", "Combined SAT distribution by borough"),
+              ("05_sat_section_correlations.png", "Pearson and Spearman relationships among SAT sections"),
+              ("06_participation_vs_sat.png", "Participation versus school-level SAT performance"),
           ]
           for filename, title in charts:
-              path = Path("images") / filename
-              if not path.is_file():
-                  raise FileNotFoundError(f"Expected chart was not generated: {path}")
+              chart_path = Path("images") / filename
+              if not chart_path.is_file():
+                  raise FileNotFoundError(f"Expected chart was not generated: {chart_path}")
               story.append(Paragraph(title, styles["Section"]))
-              img = Image(str(path))
+              img = Image(str(chart_path))
               img._restrictSize(175*mm, 105*mm)
               story.extend([img, Spacer(1, 5*mm)])
               if filename in ("03_borough_mean_and_variation.png",
@@ -184,22 +249,28 @@ jobs:
               PageBreak(),
               Paragraph("Interpretation and limitations", styles["Section"]),
               Paragraph(
-                  "Standard deviation measures dispersion, not achievement. A borough "
-                  "with a larger standard deviation has more variation among its "
-                  "schools; it does not automatically have better or worse performance.",
+                  "Borough means are unweighted: each school contributes equally because "
+                  "the file does not contain enrollment or test-taker counts. They are "
+                  "not student-weighted borough averages. Staten Island has a much "
+                  "smaller school group, so its summary should be interpreted with care.",
+                  styles["BodySmall"]),
+              Paragraph(
+                  "The standard deviations use the sample formula (ddof=1). A larger "
+                  "standard deviation means greater spread among the recorded schools, "
+                  "not better performance. IQR outliers are prompts for review, not "
+                  "automatic errors.",
                   styles["BodySmall"]),
               Paragraph(
                   "Correlation describes association and does not establish causation. "
                   "School-level averages cannot be used to infer individual student "
-                  "outcomes. Borough comparisons should be interpreted alongside group "
-                  "sizes and missing data.",
+                  "outcomes. The participation analysis excludes schools with missing "
+                  "percentages, and missingness may not be random.",
                   styles["BodySmall"]),
               Paragraph(
-                  "SAT scores alone do not measure overall school quality. They do not "
-                  "account for student composition, socioeconomic context, school "
-                  "resources or longitudinal outcomes. These descriptive findings "
-                  "should prompt further investigation, not serve as a sole basis for "
-                  "school rankings or funding decisions.",
+                  "SAT averages alone do not measure overall school quality. The file "
+                  "uses the legacy three-section SAT format and its exact testing year "
+                  "is not established here. Results should prompt further investigation, "
+                  "not serve as a sole basis for school rankings or funding decisions.",
                   styles["BodySmall"]),
               Paragraph(
                   "Reproducibility: the accompanying Jupyter notebook contains the "
@@ -214,18 +285,28 @@ jobs:
       - name: Verify execution outputs and exported charts
         run: |
           python - <<'PY'
+          import hashlib
           import json
           from pathlib import Path
+          from PIL import Image
 
           notebook_path = Path("Analysis of SAT Performance Across NYC Schools.ipynb")
           notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
           code_cells = [cell for cell in notebook["cells"] if cell["cell_type"] == "code"]
           executed = [cell for cell in code_cells if cell.get("execution_count") is not None]
-          with_outputs = [cell for cell in code_cells if cell.get("outputs")]
+          errors = [
+              output for cell in code_cells for output in cell.get("outputs", [])
+              if output.get("output_type") == "error"
+          ]
           assert len(executed) == len(code_cells), (
               f"Only {len(executed)} of {len(code_cells)} code cells executed."
           )
-          assert with_outputs, "No code cell contains saved outputs."
+          assert not errors, f"Notebook contains {len(errors)} error output(s)."
+          all_source = "\n".join(
+              "".join(cell.get("source", [])) for cell in code_cells
+          )
+          assert "sns.regplot(" in all_source
+          assert "fig, ax = plt.subplots(figsize=(9, 6))" in all_source
 
           expected_charts = [
               "01_math_benchmark_schools.png",
@@ -235,13 +316,33 @@ jobs:
               "05_sat_section_correlations.png",
               "06_participation_vs_sat.png",
           ]
-          missing = [name for name in expected_charts if not (Path("images") / name).is_file()]
-          assert not missing, f"Missing exported charts: {missing}"
-          print(f"Executed {len(executed)} code cells; {len(with_outputs)} contain outputs.")
-          print("Verified charts:", ", ".join(expected_charts))
+          for name in expected_charts:
+              path = Path("images") / name
+              assert path.is_file() and path.stat().st_size > 10_000, (
+                  f"Missing or unexpectedly small chart: {path}"
+              )
+              with Image.open(path) as chart:
+                  chart.verify()
+
+          corr_hash = hashlib.sha256(
+              (Path("images") / "05_sat_section_correlations.png").read_bytes()
+          ).digest()
+          participation_hash = hashlib.sha256(
+              (Path("images") / "06_participation_vs_sat.png").read_bytes()
+          ).digest()
+          assert corr_hash != participation_hash, (
+              "The participation chart is identical to the SAT-correlation chart."
+          )
+
+          pdf = Path("NYC_Schools_SAT_Analysis.pdf")
+          assert pdf.is_file() and pdf.stat().st_size > 50_000, (
+              "The PDF report is missing or unexpectedly small."
+          )
+          print(f"Executed all {len(executed)} notebook code cells with no errors.")
+          print("Verified six valid, non-empty chart exports and a regenerated PDF.")
           PY
 
-      - name: Commit executed notebook and charts
+      - name: Commit executed notebook, charts, and report
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
