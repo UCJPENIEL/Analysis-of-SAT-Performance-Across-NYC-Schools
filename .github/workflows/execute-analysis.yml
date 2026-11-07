@@ -351,5 +351,8 @@ jobs:
             echo "No executed notebook or chart changes to commit."
           else
             git commit -m "Save executed SAT analysis and visualizations [skip ci]"
+            # Another documentation or source update may land while this job runs.
+            # Rebase the generated outputs on the latest main before pushing.
+            git pull --rebase origin main
             git push
           fi
